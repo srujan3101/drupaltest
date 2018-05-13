@@ -1,0 +1,97 @@
+<?php
+/*
+** implements hook_block_info()
+*/
+function drupal_demo_block_info() {
+  $block['prime_block'] = [
+    'info' => t('Prime content'),
+  ];
+  return $block;
+}
+
+/*
+** implements hook_block_view()
+*/
+function drupal_demo_block_view($delta = '') {
+  $block = [];
+
+  if($delta == 'prime_block') {
+    drupal_add_js(drupal_get_path('module', 'drupal_demo'). '/js/prime.js');
+    drupal_add_css(drupal_get_path('module', 'drupal_demo'). '/css/prime.css');
+    $prime_day = get_prime_number(31);
+    $query = db_query("select title from node where DATE_FORMAT(FROM_UNIXTIME(`created`), '%d') IN (:prime_day) Limit 0, 5", [":prime_day" => $prime_day]);
+    $title = $query->fetchCol();
+    $block['subject'] = t('Prime Nodes');
+    $block['content'] = theme('item_list', ['items' => $title]);
+  }
+  return $block;
+}
+
+/*
+** implements hook_node_validate()
+*/
+function drupal_demo_node_validate($node, $form, &$form_state) {
+  $day = format_date(REQUEST_TIME, 'custom', 'd');
+  if($node->type == 'prime_content' && !check_prime_mumber($day)) {
+    form_set_error('', t('Today is not prime day to add this type of content'));
+  }
+}
+
+/*
+** implements hook_form_FORM_ID_alter()
+*/
+function drupal_demo_form_node_type_form_alter(&$form, &$form_state, $form_id) {
+
+  $form['message'] = array(
+    '#type' => 'textarea',
+    '#title' => t('Message'),
+    '#default_value' => variable_get('node_message_'.$form['type']['#default_value'], ''),
+    '#rows' => 4,
+    '#weight' => 0,
+  );
+  $form['#submit'][] = 'node_type_form_custom_submit';
+}
+
+function node_type_form_custom_submit(&$form, &$form_state) {
+  variable_set('node_message_'. $form_state['values']['type'], $form_state['values']['message']);
+}
+
+/*
+** implements hook_node_view()
+*/
+function drupal_demo_node_view($node, $view_mode, $langcode) {
+  $message = variable_get('node_message_'.$node->type, '');
+  if($view_mode == 'full' && $message) {
+    $node->content['message'] = array(
+      '#markup' => '<div>'. $message . '</div>',
+      '#weight' => -10,
+    );
+  }
+}
+
+function get_prime_number($number) {
+  $prime_number = [];
+
+  for($i=1; $i<=$number; $i++) {
+    if(check_prime_mumber($i)) {
+      $prime_number[] = $i;
+    }
+  }
+  return $prime_number;
+
+}
+
+function check_prime_mumber($number) {
+
+  if ($number <= 1)  {
+    return FALSE;
+  }
+
+  for ($i=2; $i <= sqrt($number); $i++) {
+    if ($number % $i == 0) {
+      return FALSE;
+    }
+  }
+
+  return TRUE;
+}
